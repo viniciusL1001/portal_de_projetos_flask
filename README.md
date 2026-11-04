@@ -6,15 +6,26 @@ Versão Flask da API Node.js do Portal de Projetos, baseada na organização do 
 
 1. Inicie o MySQL no XAMPP e utilize o schema `portal_de_projetos`.
 2. No terminal, na raiz do repositório, execute: `python install.py`.
-3. Confira a conexão em `server.py`: usuário `root`, senha vazia e porta 3306.
+3. Crie um `.env` na raiz e defina `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT` e `JWT_SECRET`. A senha pode ficar vazia se seu MySQL não usar senha.
 4. Execute: `python app.py`.
 5. Abra `http://localhost:8000/Login.html`.
 
 A API Flask e a API Node.js usam a **mesma porta 8000**, portanto execute apenas uma delas por vez. O frontend em `static/` foi mantido idêntico nos dois repositórios.
 
-**Atenção:** `python install.py --recriar-banco` executa `docs/Banco.sql`, que contém `DROP SCHEMA` e apaga os dados existentes. Não use essa opção se deseja manter os cadastros.
+**Atenção:** `python install.py` instala apenas as dependências. O arquivo `docs/Banco.sql` contém `DROP SCHEMA` e apagaria os dados existentes se fosse executado manualmente; não é necessário executá-lo quando o banco já existe.
 
-A chave de JWT pode ser definida com a variável de ambiente `JWT_SECRET`. Sem ela, o projeto usa uma chave local de desenvolvimento em `api/http/meu_token_jwt.py`. Configure uma chave própria antes de publicar a aplicação. Os tokens de Flask e Node.js não são necessariamente intercambiáveis; faça login novamente ao trocar de API.
+O Flask carrega o arquivo `.env` usando `python-dotenv`. Defina `JWT_SECRET` com uma chave própria (não deixe o texto de exemplo `coloque_aqui_seu_segredo_jwt`). O arquivo `.env` é ignorado pelo Git; não publique sua senha nem o segredo. Tokens de Flask e Node.js não são necessariamente intercambiáveis; faça login novamente ao trocar de API.
+
+Exemplo de nomes das variáveis (substitua o segredo por uma chave forte e mantenha sua senha somente no `.env`):
+
+```dotenv
+DB_HOST=127.0.0.1
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=portal_de_projetos
+DB_PORT=3306
+JWT_SECRET=substitua_por_uma_chave_forte_e_aleatoria
+```
 
 ## Organização
 
