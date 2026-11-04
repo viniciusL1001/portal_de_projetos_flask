@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
@@ -32,15 +35,16 @@ class Server:
         CORS(self.__app, resources={r"/*": {"origins": "*"}})
 
     def init(self):
+        load_dotenv(Path(__file__).resolve().parent / '.env')
         # Mesma base de dados usada pela API Node.js.
         self.__database = MysqlDatabase(
             pool_name="pool_portal",
             pool_size=10,
-            host="127.0.0.1",
-            user="root",
-            password="",  # Altere aqui se seu MySQL tiver senha.
-            database="portal_de_projetos",
-            port=3306
+            host=os.getenv("DB_HOST", "127.0.0.1"),
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASSWORD", ""),
+            database=os.getenv("DB_NAME", "portal_de_projetos"),
+            port=int(os.getenv("DB_PORT", "3306"))
         )
         self.__database.connect()
 
