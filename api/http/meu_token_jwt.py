@@ -1,15 +1,17 @@
 import os
 import time
 import secrets
+from pathlib import Path
+from dotenv import load_dotenv
 import jwt
 
 
 class MeuTokenJWT:
     def __init__(self):
-        # Pode configurar JWT_SECRET no ambiente, sem precisar de arquivo .env.
-        self._key = os.environ.get(
-            "JWT_SECRET", "portal-de-projetos-flask-chave-local-altere-antes-de-publicar"
-        )
+        load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+        self._key = os.getenv("JWT_SECRET")
+        if not self._key or self._key == "coloque_aqui_seu_segredo_jwt":
+            raise RuntimeError("Configure JWT_SECRET com uma chave própria no arquivo .env.")
         self._alg = "HS256"
         self._iss = "http://localhost"
         self._aud = "http://localhost"
