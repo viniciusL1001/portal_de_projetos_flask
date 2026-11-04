@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorar usuários - Portal de Projetos</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body class="container">
+    <h1>Explorar usuários</h1>
+    <nav>
+        <a href="dashboard.html">Início</a>
+        <a href="Projetos.html">Projetos</a>
+        <a href="Perfil.html">Meu perfil</a>
+        <button id="btnSair" type="button">Sair</button>
+    </nav>
+
+    <section class="caixa">
+        <h2>Encontrar pessoas</h2>
+        <label for="txtFiltro">Pesquisar pelo nome</label>
+        <input id="txtFiltro" type="search" placeholder="Digite o nome do usuário">
+        <p class="ajuda">Você pode visualizar perfis e projetos públicos. Só o dono de cada conta pode editá-la ou excluí-la.</p>
+        <div id="resposta" role="status" aria-live="polite"></div>
+        <div id="listaUsuarios"></div>
+    </section>
+
+    <section class="caixa" id="detalhes" hidden>
+        <h2>Perfil público</h2>
+        <h3 id="nomePerfil"></h3>
+        <div id="projetosPerfil"></div>
+    </section>
+
+    <script type="module">
+        import ApiService from "./ApiService.js";
+        import { obterSessao, sair, mostrarMensagem } from "./sessao.js";
+
+        const sessao = obterSessao();
+        if (!sessao) throw new Error("Login necessário.");
+        const api = new ApiService(sessao.token);
+        const $ = id => document.getElementById(id);
+        $("btnSair").onclick = sair;
+        let usuarios = [];
+        let idSelecionado = null;
+
+        function listarUsuarios() {
+            const filtro = $("txtFiltro").value.trim().toLowerCase();
+            $("listaUsuarios").replaceChildren();
+            const filtrados = usuarios.filter(u => u.nomeUsuario.toLowerCase().includes(filtro));
+            if (!filtrados.length) {
+                $("listaUsuarios").textContent = "Nenhum usuário encontrado.";
+                return;
+            }
+
+            const lista = document.createElement("ul");
+            for (const usuario of filtrados) {
+                const item = document.createElement("li");
+                const botao = document.createElement("button");
+                botao.type = "button";
+                botao.textContent = usuario.nomeUsuario;
+                botao.onclick = () => mostrarUsuario(usuario.idUsuario);
+                item.appendChild(botao);
+                if (usuario.idUsuario === sessao.usuario.idUsuario) {
+                    const texto = document.createElement("span");
+                    texto.textContent = " (você)";
+                    item.appendChild(texto);
+                }
+                lista.appendChild(item);
+            }
+            $("listaUsuarios").appendChild(lista);
+        }
+
+        async function mostrarUsuario(idUsuario) {
+            idSelecionado = idUsuario;
+            $("detalhes").hidden = false;
+            $("nomePerfil").textContent = "Carregando...";
+            $("projetosPerfil").textContent = "";
+            try {
+                const [perfil, projetosResposta] = await Promise.all([
+                    api.getById("/api/usuarios", idUsuario),
+                    api.get("/api/projetos")
+                ]);
+                if (idSelecionado !== idUsuario) return;
+                const usuario = perfil.data?.usuario;
+                if (!usuario) throw new Error("Perfil não encontrado.");
+                $("nomePerfil").textContent = usuario.nomeUsuario;
+
+                const projetos = (projetosResposta.data?.message || [])
+                    .filter(p => Number(p.usuario?.idUsuario) === Number(idUsuario));
+                if (!projetos.length) {
+                    $("projetosPerfil").textContent = "Este usuário ainda não publicou projetos.";
+                    return;
+                }
+                const lista = document.createElement("ul");
+                for (const projeto of projetos) {
+                    const item = document.createElement("li");
+                    const titulo = document.createElement("strong");
+                    titulo.textContent = projeto.titulo;
+                    item.appendChild(titulo);
+                    if (projeto.descricao) {
+                        const descricao = document.createElement("p");
+                        descricao.textContent = projeto.descricao;
+                        item.appendChild(descricao);
+                    }
+                    if (projeto.imagem) {
+                        const imagem = document.createElement("img");
+                        imagem.src = projeto.imagem;
+                        imagem.alt = "Imagem do projeto " + projeto.titulo;
+                        imagem.className = "miniatura-projeto";
+                        item.appendChild(imagem);
+                    }
+                    if (projeto.linkGitHub) {
+                        const link = document.createElement("a");
+                        link.href = projeto.linkGitHub;
+                        link.textContent = " Ver no GitHub";
+                        link.target = "_blank";
+                        link.rel = "noopener noreferrer";
+                        item.appendChild(link);
+                    }
+                    lista.appendChild(item);
+                }
+                $("projetosPerfil").replaceChildren(lista);
+            } catch (erro) {
+                if (idSelecionado === idUsuario) {
+                    $("nomePerfil").textContent = "Não foi possível carregar o perfil.";
+                    mostrarMensagem($("resposta"), erro.message, true);
+                }
+            }
+        }
+
+        $("txtFiltro").addEventListener("input", listarUsuarios);
+        (async () => {
+            try {
+                const resposta = await api.get("/api/usuarios");
+                usuarios = resposta.data?.usuarios || [];
+                if (!Array.isArray(usuarios)) throw new Error("Lista de usuários inválida.");
+                listarUsuarios();
+            } catch (erro) {
+                mostrarMensagem($("resposta"), erro.message, true);
+            }
+        })();
+    </script>
+</body>
+</html>

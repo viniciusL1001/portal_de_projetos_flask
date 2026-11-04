@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Portal de Projetos</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body class="container">
+    <h1>Portal de Projetos</h1>
+    <section class="caixa">
+        <h2>Login</h2>
+        <form id="formLogin">
+            <label for="txtEmail">E-mail</label>
+            <input type="email" id="txtEmail" required autocomplete="username">
+            <label for="txtSenha">Senha</label>
+            <input type="password" id="txtSenha" required autocomplete="current-password">
+            <div class="acoes">
+                <button type="submit">Entrar</button>
+                <button type="button" id="btnCadastro">Criar conta</button>
+            </div>
+        </form>
+        <div id="divResposta" role="status" aria-live="polite"></div>
+    </section>
+    <p class="ajuda">Ainda não tem cadastro? Clique em "Criar conta".</p>
+    <script type="module">
+        import ApiService from "./ApiService.js";
+        import { mostrarMensagem } from "./sessao.js";
+
+        const api = new ApiService();
+        const form = document.getElementById("formLogin");
+        const divResposta = document.getElementById("divResposta");
+
+        document.getElementById("btnCadastro").onclick = () => {
+            window.location.href = "Cadastro.html";
+        };
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const botao = form.querySelector("button");
+            botao.disabled = true;
+            try {
+                const resposta = await api.post("/api/usuarios/login", {
+                    usuario: {
+                        email: document.getElementById("txtEmail").value.trim(),
+                        senha: document.getElementById("txtSenha").value
+                    }
+                });
+                if (!resposta.data?.token || !resposta.data?.user?.usuario?.idUsuario) {
+                    throw new Error("Resposta de login incompleta.");
+                }
+                localStorage.setItem("userData", JSON.stringify(resposta));
+                window.location.href = "dashboard.html";
+            } catch (erro) {
+                mostrarMensagem(divResposta, erro.message, true);
+            } finally {
+                botao.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

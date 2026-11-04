@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criar conta - Portal de Projetos</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body class="container">
+    <h1>Portal de Projetos</h1>
+    <section class="caixa">
+        <h2>Criar conta</h2>
+        <form id="formCadastro">
+            <label for="txtNome">Nome de usuário</label>
+            <input type="text" id="txtNome" minlength="4" maxlength="100" required autocomplete="username">
+
+            <label for="txtEmail">E-mail</label>
+            <input type="email" id="txtEmail" required autocomplete="email">
+
+            <label for="txtSenha">Senha</label>
+            <input type="password" id="txtSenha" minlength="6" required autocomplete="new-password">
+            <p class="ajuda">Mínimo de 6 caracteres, com uma letra maiúscula, um número e um caractere especial. Não use espaços.</p>
+
+            <label for="txtConfirmarSenha">Confirmar senha</label>
+            <input type="password" id="txtConfirmarSenha" minlength="6" required autocomplete="new-password">
+
+            <div class="acoes">
+                <button type="submit">Cadastrar</button>
+                <button type="button" id="btnVoltar">Voltar ao login</button>
+            </div>
+        </form>
+        <div id="divResposta" role="status" aria-live="polite"></div>
+    </section>
+
+    <script type="module">
+        import ApiService from "./ApiService.js";
+        import { mostrarMensagem } from "./sessao.js";
+
+        const api = new ApiService();
+        const form = document.getElementById("formCadastro");
+        const divResposta = document.getElementById("divResposta");
+
+        document.getElementById("btnVoltar").onclick = () => {
+            window.location.href = "Login.html";
+        };
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const nomeUsuario = document.getElementById("txtNome").value.trim();
+            const email = document.getElementById("txtEmail").value.trim();
+            const senha = document.getElementById("txtSenha").value;
+            const confirmarSenha = document.getElementById("txtConfirmarSenha").value;
+
+            if (nomeUsuario.length < 4) {
+                return mostrarMensagem(divResposta, "O nome precisa ter pelo menos 4 caracteres.", true);
+            }
+            if (senha !== confirmarSenha) {
+                return mostrarMensagem(divResposta, "As senhas não coincidem.", true);
+            }
+            if (senha.length < 6 || /\s/.test(senha) || !/[A-Z]/.test(senha) ||
+                !/[0-9]/.test(senha) || !/[!@#$%^&*(),.?":{}|<>]/.test(senha)) {
+                return mostrarMensagem(divResposta, "A senha deve conter uma maiúscula, um número, um caractere especial e no mínimo 6 caracteres, sem espaços.", true);
+            }
+
+            const botao = form.querySelector('button[type="submit"]');
+            botao.disabled = true;
+            try {
+                await api.post("/api/usuarios", {
+                    usuario: {
+                        nomeUsuario: nomeUsuario,
+                        email: email,
+                        senha: senha
+                    }
+                });
+                form.reset();
+                mostrarMensagem(divResposta, "Conta cadastrada com sucesso! Volte ao login para entrar.");
+            } catch (erro) {
+                mostrarMensagem(divResposta, erro.message, true);
+            } finally {
+                botao.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

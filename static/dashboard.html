@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Início - Portal de Projetos</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body class="container">
+    <h1>Portal de Projetos</h1>
+    <div id="divUsuario"></div>
+    <nav aria-label="Navegação principal">
+        <a href="Projetos.html">Projetos e comentários</a>
+        <a href="Usuarios.html">Explorar usuários</a>
+        <a href="Perfil.html">Meu perfil</a>
+        <button type="button" id="btnSair">Sair</button>
+    </nav>
+    <section class="caixa">
+        <h2>Bem-vindo ao Portal</h2>
+        <p>Publique projetos, descubra outros usuários e gerencie seus dados em Meu perfil.</p>
+        <p>Em <strong>Projetos e comentários</strong>, selecione um projeto e clique em <strong>Comentários</strong> para ver os comentários dele.</p>
+    </section>
+    <script type="module">
+        import { obterSessao, sair } from "./sessao.js";
+        const sessao = obterSessao();
+        if (sessao) {
+            document.getElementById("divUsuario").textContent = "Bem-vindo(a), " + sessao.usuario.name;
+            document.getElementById("btnSair").onclick = sair;
+        }
+    </script>
+</body>
+</html>

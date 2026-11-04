@@ -1,0 +1,72 @@
+/* Estilo propositalmente simples, semelhante às telas CRUD do exemplo. */
+body {
+    margin: 0;
+    padding: 24px;
+    font-family: Arial, sans-serif;
+    color: #222;
+    background: #fff;
+}
+.container {
+    max-width: 1050px;
+    margin: 0 auto;
+}
+h1 { margin-top: 0; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1.1rem; }
+nav { margin-bottom: 20px; }
+nav a, nav button { margin-right: 12px; }
+.caixa {
+    padding: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 18px;
+}
+label {
+    display: block;
+    margin: 10px 0 5px;
+}
+input, textarea, select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+    font: inherit;
+}
+textarea { min-height: 70px; }
+input[readonly] { background: #eee; }
+button {
+    padding: 7px 12px;
+    border: 1px solid #999;
+    border-radius: 3px;
+    background: #eee;
+    cursor: pointer;
+    font: inherit;
+}
+button:hover { background: #ddd; }
+button:disabled { cursor: default; opacity: .55; }
+.acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.tabela-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #ccc; padding: 9px; text-align: left; vertical-align: top; }
+th { background: #eee; }
+td .acoes { margin-top: 0; }
+.selecionado { background: #f1f1f1; }
+.linha-comentarios td { background: #fafafa; padding: 16px; }
+.mensagem { padding: 10px; margin: 12px 0; border: 1px solid #bbb; }
+.mensagem:empty { display: none; }
+.sucesso { background: #f1f8f1; }
+.erro { background: #fff0f0; }
+.lista-comentarios { padding-left: 22px; }
+.lista-comentarios li { margin-bottom: 15px; }
+.lista-comentarios p { margin: 5px 0; white-space: pre-wrap; }
+.ajuda { font-size: .9rem; color: #555; }
+.filtro { max-width: 450px; }
+@media (max-width: 700px) {
+    body { padding: 12px; }
+    th, td { padding: 6px; }
+}
+
+/* Imagens dos projetos */
+.previa-imagem { max-width: 220px; max-height: 160px; margin-top: 10px; object-fit: contain; }
+.miniatura-projeto { width: 100px; max-height: 75px; object-fit: cover; }

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu perfil - Portal de Projetos</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body class="container">
+    <h1>Meu perfil</h1>
+    <nav>
+        <a href="dashboard.html">Início</a>
+        <a href="Projetos.html">Projetos</a>
+        <a href="Usuarios.html">Explorar usuários</a>
+        <button id="btnSair" type="button">Sair</button>
+    </nav>
+
+    <section class="caixa">
+        <h2>Dados da minha conta</h2>
+        <form id="formPerfil">
+            <label for="txtNome">Nome de usuário</label>
+            <input id="txtNome" required minlength="4" maxlength="100" autocomplete="username">
+            <label for="txtEmail">Meu e-mail</label>
+            <input id="txtEmail" type="email" required autocomplete="email">
+            <label for="txtSenha">Nova senha (opcional)</label>
+            <input id="txtSenha" type="password" autocomplete="new-password">
+            <p class="ajuda">Deixe em branco para manter a senha atual. Caso altere, use no mínimo 6 caracteres, uma letra maiúscula, um número e um caractere especial, sem espaços.</p>
+            <div class="acoes">
+                <button type="submit" id="btnSalvar">Salvar alterações</button>
+            </div>
+        </form>
+        <div id="resposta" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="caixa">
+        <h2>Excluir minha conta</h2>
+        <p>Esta ação é permanente e também exclui seus projetos e comentários associados. Não pode ser desfeita.</p>
+        <button id="btnExcluir" type="button">Excluir minha conta</button>
+    </section>
+
+    <script type="module">
+        import ApiService from "./ApiService.js";
+        import { obterSessao, sair, mostrarMensagem } from "./sessao.js";
+
+        const sessao = obterSessao();
+        if (!sessao) throw new Error("Login necessário.");
+        const api = new ApiService(sessao.token);
+        const $ = id => document.getElementById(id);
+        $("btnSair").onclick = sair;
+
+        async function carregarPerfil() {
+            try {
+                const resposta = await api.get("/api/usuarios/me");
+                const usuario = resposta.data?.usuario;
+                if (!usuario || Number(usuario.idUsuario) !== sessao.usuario.idUsuario) {
+                    throw new Error("Não foi possível confirmar sua conta.");
+                }
+                $("txtNome").value = usuario.nomeUsuario;
+                $("txtEmail").value = usuario.email;
+            } catch (erro) {
+                mostrarMensagem($("resposta"), erro.message, true);
+                $("btnSalvar").disabled = true;
+                $("btnExcluir").disabled = true;
+            }
+        }
+
+        $("formPerfil").addEventListener("submit", async event => {
+            event.preventDefault();
+            const senha = $("txtSenha").value;
+            const usuario = {
+                nomeUsuario: $("txtNome").value.trim(),
+                email: $("txtEmail").value.trim()
+            };
+            if (senha) {
+                if (!/^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>])[^\s]{6,}$/.test(senha)) {
+                    return mostrarMensagem($("resposta"), "A nova senha não atende aos requisitos.", true);
+                }
+                usuario.senha = senha;
+            }
+            $("btnSalvar").disabled = true;
+            try {
+                await api.put("/api/usuarios", sessao.usuario.idUsuario, { usuario });
+                alert("Perfil atualizado! Entre novamente para atualizar sua sessão.");
+                sair();
+            } catch (erro) {
+                mostrarMensagem($("resposta"), erro.message, true);
+            } finally {
+                $("btnSalvar").disabled = false;
+            }
+        });
+
+        $("btnExcluir").addEventListener("click", async () => {
+            if (!confirm("Excluir definitivamente sua conta, seus projetos e comentários?")) return;
+            if (!confirm("Esta ação não pode ser desfeita. Confirma a exclusão?")) return;
+            $("btnExcluir").disabled = true;
+            try {
+                await api.delete("/api/usuarios", sessao.usuario.idUsuario);
+                alert("Conta excluída.");
+                sair();
+            } catch (erro) {
+                mostrarMensagem($("resposta"), erro.message, true);
+                $("btnExcluir").disabled = false;
+            }
+        });
+
+        carregarPerfil();
+    </script>
+</body>
+</html>

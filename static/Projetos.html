@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projetos - Portal de Projetos</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body class="container">
+    <h1>Gerenciamento de Projetos</h1>
+    <nav><a href="dashboard.html">Início</a> <a href="Usuarios.html">Explorar usuários</a> <a href="Perfil.html">Meu perfil</a> <button id="btnSair" type="button">Sair</button></nav>
+
+    <section class="caixa">
+        <h2>Filtro de projetos</h2>
+        <label for="txtFiltro">Título do projeto</label>
+        <input class="filtro" id="txtFiltro" type="search" placeholder="Buscar pelo título">
+    </section>
+
+    <section class="caixa">
+        <h2>Cadastro de Projeto</h2>
+        <form id="formProjeto">
+            <label for="txtId">ID do projeto</label>
+            <input id="txtId" type="number" readonly placeholder="Selecione um projeto na tabela">
+            <label for="txtTitulo">Título</label>
+            <input id="txtTitulo" maxlength="100" required>
+            <label for="txtDescricao">Descrição</label>
+            <textarea id="txtDescricao"></textarea>
+            <label for="txtImagem">Imagem atual (URL ou caminho)</label>
+            <input id="txtImagem" maxlength="255" placeholder="Opcional">
+            <label for="arquivoImagem">Escolha PNG/JPG do computador (até 2 MB)</label>
+            <input id="arquivoImagem" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg">
+            <p class="ajuda">O arquivo selecionado substitui a imagem anterior ao salvar.</p>
+            <img id="previaImagem" class="previa-imagem" alt="Prévia da imagem" hidden>
+            <label for="txtGitHub">Link do GitHub</label>
+            <input id="txtGitHub" type="url" placeholder="https://github.com/usuario/repositorio" required>
+            <label for="txtAutor">ID do autor</label>
+            <input id="txtAutor" type="number" min="1" required>
+            <p class="ajuda">Ao criar, o autor será o usuário logado. Ao editar, o autor original é mantido.</p>
+            <div class="acoes">
+                <button type="submit" id="btnCriar">Criar</button>
+                <button type="button" id="btnAtualizar">Atualizar</button>
+                <button type="button" id="btnExcluir">Excluir</button>
+                <button type="button" id="btnLimpar">Limpar</button>
+                <button type="button" id="btnListar">Listar</button>
+            </div>
+        </form>
+        <div id="divResposta" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="caixa">
+        <h2>Lista de projetos</h2>
+        <div id="divTabela" class="tabela-scroll"></div>
+    </section>
+
+    <script type="module">
+        import ApiService from "./ApiService.js";
+        import { obterSessao, sair, mostrarMensagem } from "./sessao.js";
+
+        const sessao = obterSessao();
+        if (!sessao) throw new Error("Login necessário.");
+        const api = new ApiService(sessao.token);
+        const $ = id => document.getElementById(id);
+        $("btnSair").onclick = sair;
+
+        let projetos = [];
+        let projetoExpandido = null;
+        let urlPrevia = null;
+
+        function mostrarPrevia(caminho, arquivo = null) {
+            if (urlPrevia) URL.revokeObjectURL(urlPrevia);
+            urlPrevia = null;
+            const previa = $("previaImagem");
+            if (arquivo) {
+                urlPrevia = URL.createObjectURL(arquivo);
+                previa.src = urlPrevia;
+            } else if (caminho) {
+                previa.src = caminho;
+            } else {
+                previa.removeAttribute("src");
+            }
+            previa.hidden = !arquivo && !caminho;
+        }
+
+        $("arquivoImagem").addEventListener("change", () => {
+            const arquivo = $("arquivoImagem").files[0];
+            if (arquivo && (!["image/png", "image/jpeg"].includes(arquivo.type) || arquivo.size > 2 * 1024 * 1024)) {
+                $("arquivoImagem").value = "";
+                mensagem("Escolha PNG ou JPG de até 2 MB.", true);
+            }
+            mostrarPrevia($("txtImagem").value.trim(), $("arquivoImagem").files[0]);
+        });
+
+        function mensagem(texto, erro = false) {
+            mostrarMensagem($("divResposta"), texto, erro);
+        }
+
+        function atualizarPermissoesProjeto(projeto = null) {
+            const pertenceAoUsuario = projeto && Number(projeto.usuario?.idUsuario || projeto.idUsuario) === sessao.usuario.idUsuario;
+            $("btnAtualizar").disabled = !pertenceAoUsuario;
+            $("btnExcluir").disabled = !pertenceAoUsuario;
+        }
+
+        function limpar() {
+            atualizarPermissoesProjeto();
+            $("formProjeto").reset();
+            $("txtId").value = "";
+            $("txtAutor").value = sessao.usuario.idUsuario;
+            mostrarPrevia("");
+        }
+
+        function selecionar(projeto) {
+            atualizarPermissoesProjeto(projeto);
+            $("txtId").value = projeto.idProjeto;
+            $("txtTitulo").value = projeto.titulo || "";
+            $("txtDescricao").value = projeto.descricao || "";
+            $("txtImagem").value = projeto.imagem || "";
+            $("arquivoImagem").value = "";
+            mostrarPrevia(projeto.imagem || "");
+            $("txtGitHub").value = projeto.linkGitHub || "";
+            $("txtAutor").value = projeto.usuario?.idUsuario || projeto.idUsuario || "";
+            mensagem("Projeto " + projeto.idProjeto + " selecionado.");
+        }
+
+        function dadosProjeto() {
+            const titulo = $("txtTitulo").value.trim();
+            const linkGitHub = $("txtGitHub").value.trim();
+            const imagem = $("txtImagem").value.trim();
+            const idUsuario = Number($("txtAutor").value);
+
+            if (!titulo || !linkGitHub || !Number.isInteger(idUsuario) || idUsuario <= 0) {
+                throw new Error("Preencha título, link do GitHub e ID do autor.");
+            }
+            if (!/^https:\/\/(www\.)?github\.com\//i.test(linkGitHub)) {
+                throw new Error("O link deve ser uma URL HTTPS do github.com.");
+            }
+            if (imagem && !$("arquivoImagem").files.length && !/\.(png|jpe?g|webp|gif)$/i.test(imagem)) {
+                throw new Error("O campo imagem precisa terminar em um formato de imagem aceito pela API.");
+            }
+
+            return {
+                projeto: {
+                    titulo: titulo,
+                    descricao: $("txtDescricao").value.trim() || null,
+                    imagem: imagem || null,
+                    linkGitHub: linkGitHub,
+                    usuario: { idUsuario: idUsuario }
+                }
+            };
+        }
+
+        async function enviarImagemSeSelecionada(dados) {
+            const arquivo = $("arquivoImagem").files[0];
+            if (!arquivo) return;
+            if (!["image/png", "image/jpeg"].includes(arquivo.type) || arquivo.size > 2097152) {
+                throw new Error("Escolha PNG ou JPG de até 2 MB.");
+            }
+            const resposta = await api.enviarImagem("/api/projetos/imagem", arquivo);
+            dados.projeto.imagem = resposta.data.imagem;
+            $("txtImagem").value = resposta.data.imagem;
+            $("arquivoImagem").value = "";
+            mostrarPrevia(resposta.data.imagem);
+        }
+
+        function botao(texto, aoClicar) {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = texto;
+            b.addEventListener("click", aoClicar);
+            return b;
+        }
+
+        function celula(linha, conteudo) {
+            const td = document.createElement("td");
+            if (conteudo instanceof Node) td.appendChild(conteudo);
+            else td.textContent = String(conteudo ?? "");
+            linha.appendChild(td);
+            return td;
+        }
+
+        function renderizar() {
+            const div = $("divTabela");
+            div.replaceChildren();
+            const tabela = document.createElement("table");
+            const cabecalho = document.createElement("thead");
+            const linhaCabecalho = document.createElement("tr");
+            ["ID", "Título", "Descrição", "Imagem", "Autor", "GitHub", "Ações"].forEach(nome => {
+                const th = document.createElement("th");
+                th.textContent = nome;
+                linhaCabecalho.appendChild(th);
+            });
+            cabecalho.appendChild(linhaCabecalho);
+            tabela.appendChild(cabecalho);
+            const corpo = document.createElement("tbody");
+            const filtro = $("txtFiltro").value.toLowerCase();
+
+            const filtrados = projetos.filter(p => String(p.titulo || "").toLowerCase().includes(filtro));
+            for (const projeto of filtrados) {
+                const linha = document.createElement("tr");
+                if (Number($("txtId").value) === Number(projeto.idProjeto)) linha.className = "selecionado";
+                celula(linha, projeto.idProjeto);
+                celula(linha, projeto.titulo);
+                celula(linha, projeto.descricao);
+                const colunaImagem = celula(linha, "");
+                if (projeto.imagem) {
+                    const img = document.createElement("img");
+                    img.src = projeto.imagem;
+                    img.alt = "Imagem de " + projeto.titulo;
+                    img.className = "miniatura-projeto";
+                    img.loading = "lazy";
+                    colunaImagem.appendChild(img);
+                }
+                celula(linha, projeto.usuario?.nomeUsuario || projeto.usuario?.idUsuario || "");
+                const tdLink = celula(linha, "");
+                if (projeto.linkGitHub) {
+                    const a = document.createElement("a");
+                    a.href = projeto.linkGitHub;
+                    a.target = "_blank";
+                    a.rel = "noopener noreferrer";
+                    a.textContent = "Abrir";
+                    tdLink.appendChild(a);
+                }
+                const acoes = document.createElement("div");
+                acoes.className = "acoes";
+                acoes.appendChild(botao("Selecionar", () => {
+                    selecionar(projeto);
+                    renderizar();
+                }));
+                acoes.appendChild(botao(projetoExpandido === projeto.idProjeto ? "Ocultar comentários" : "Comentários", () => {
+                    selecionar(projeto);
+                    if (projetoExpandido === projeto.idProjeto) {
+                        projetoExpandido = null;
+                        renderizar();
+                    } else {
+                        projetoExpandido = projeto.idProjeto;
+                        renderizar();
+                        carregarComentarios(projeto.idProjeto);
+                    }
+                }));
+                celula(linha, acoes);
+                corpo.appendChild(linha);
+
+                if (projetoExpandido === projeto.idProjeto) {
+                    const detalhes = document.createElement("tr");
+                    detalhes.className = "linha-comentarios";
+                    const td = document.createElement("td");
+                    td.colSpan = 7;
+                    const titulo = document.createElement("h3");
+                    titulo.textContent = "Comentários de: " + projeto.titulo;
+                    td.appendChild(titulo);
+                    const area = document.createElement("div");
+                    area.id = "comentariosDoProjeto";
+                    area.textContent = "Carregando comentários...";
+                    td.appendChild(area);
+                    detalhes.appendChild(td);
+                    corpo.appendChild(detalhes);
+                }
+            }
+            tabela.appendChild(corpo);
+            div.appendChild(tabela);
+            if (!filtrados.length) {
+                const p = document.createElement("p");
+                p.textContent = "Nenhum projeto encontrado.";
+                div.appendChild(p);
+            }
+        }
+
+        async function listar() {
+            try {
+                const resposta = await api.get("/api/projetos");
+                projetos = resposta.data?.message || [];
+                if (!Array.isArray(projetos)) throw new Error("Formato de projetos inesperado.");
+                if (projetoExpandido && !projetos.some(p => p.idProjeto === projetoExpandido)) projetoExpandido = null;
+                renderizar();
+                if (projetoExpandido) await carregarComentarios(projetoExpandido);
+            } catch (erro) {
+                mensagem(erro.message, true);
+            }
+        }
+
+        $("formProjeto").addEventListener("submit", async event => {
+            event.preventDefault();
+            try {
+                // O autor do novo projeto sempre é quem está logado.
+                $("txtAutor").value = sessao.usuario.idUsuario;
+                const dados = dadosProjeto();
+                await enviarImagemSeSelecionada(dados);
+                await api.post("/api/projetos", dados);
+                limpar();
+                mensagem("Projeto criado com sucesso.");
+                await listar();
+            } catch (erro) {
+                mensagem(erro.message, true);
+            }
+        });
+
+        $("btnAtualizar").onclick = async () => {
+            if (!$("txtId").value) return mensagem("Selecione um projeto para atualizar.", true);
+            try {
+                const dados = dadosProjeto();
+                await enviarImagemSeSelecionada(dados);
+                await api.put("/api/projetos", $("txtId").value, dados);
+                mensagem("Projeto atualizado com sucesso.");
+                await listar();
+            } catch (erro) {
+                mensagem(erro.message, true);
+            }
+        };
+
+        $("btnExcluir").onclick = async () => {
+            const id = $("txtId").value;
+            if (!id) return mensagem("Selecione um projeto para excluir.", true);
+            if (!confirm("Deseja realmente excluir o projeto " + id + "?")) return;
+            try {
+                await api.delete("/api/projetos", id);
+                if (projetoExpandido === Number(id)) projetoExpandido = null;
+                limpar();
+                mensagem("Projeto excluído com sucesso.");
+                await listar();
+            } catch (erro) {
+                mensagem(erro.message + " Projetos com comentários vinculados podem não ser excluídos.", true);
+            }
+        };
+
+        $("btnLimpar").onclick = limpar;
+        $("btnListar").onclick = listar;
+        $("txtFiltro").addEventListener("input", renderizar);
+
+        // Comentários aparecem somente abaixo do projeto expandido.
+        async function carregarComentarios(idProjeto) {
+            const area = $("comentariosDoProjeto");
+            if (!area || projetoExpandido !== idProjeto) return;
+            let comentarios = [];
+            try {
+                const resposta = await api.get("/api/comentarios/projeto/" + idProjeto);
+                comentarios = resposta.data?.comentarios ?? [];
+                if (!Array.isArray(comentarios)) {
+                    throw new Error("Formato de comentários inesperado.");
+                }
+            } catch (erro) {
+                area.textContent = "Erro ao carregar comentários: " + erro.message;
+                return;
+            }
+
+            if (projetoExpandido !== idProjeto) return;
+            area.replaceChildren();
+            if (!comentarios.length) {
+                const p = document.createElement("p");
+                p.textContent = "Este projeto ainda não tem comentários.";
+                area.appendChild(p);
+            } else {
+                const lista = document.createElement("ul");
+                lista.className = "lista-comentarios";
+                comentarios.forEach(comentario => {
+                    const item = document.createElement("li");
+                    const nome = document.createElement("strong");
+                    nome.textContent = comentario.nomeUsuario || comentario.usuario?.nomeUsuario || "Usuário " + comentario.idUsuario;
+                    item.appendChild(nome);
+                    const nota = document.createElement("span");
+                    nota.textContent = comentario.nota == null ? " - Sem nota" : " - Nota: " + comentario.nota + "/5";
+                    item.appendChild(nota);
+                    const texto = document.createElement("p");
+                    texto.textContent = comentario.texto;
+                    item.appendChild(texto);
+                    const acoes = document.createElement("div");
+                    acoes.className = "acoes";
+                    if (Number(comentario.usuario?.idUsuario ?? comentario.idUsuario) === sessao.usuario.idUsuario) {
+                        acoes.appendChild(botao("Editar", () => preencherComentario(comentario)));
+                        acoes.appendChild(botao("Excluir", () => excluirComentario(comentario.idComentario, idProjeto)));
+                    }
+                    item.appendChild(acoes);
+                    lista.appendChild(item);
+                });
+                area.appendChild(lista);
+            }
+
+            const form = document.createElement("form");
+            form.id = "formComentario";
+            const subtitulo = document.createElement("h3");
+            subtitulo.textContent = "Adicionar ou editar comentário";
+            form.appendChild(subtitulo);
+
+            function campo(rotulo, tipo, id, obrigatorio = false) {
+                const label = document.createElement("label");
+                label.htmlFor = id;
+                label.textContent = rotulo;
+                const input = document.createElement(tipo === "textarea" ? "textarea" : "input");
+                input.id = id;
+                if (tipo !== "textarea") input.type = tipo;
+                if (obrigatorio) input.required = true;
+                form.append(label, input);
+                return input;
+            }
+            const id = campo("ID do comentário (selecionado)", "number", "txtIdComentario");
+            id.readOnly = true;
+            const texto = campo("Texto", "textarea", "txtTextoComentario", true);
+            texto.maxLength = 1000;
+            const nota = campo("Nota (1 a 5, opcional)", "number", "txtNotaComentario");
+            nota.min = "1";
+            nota.max = "5";
+            nota.step = "1";
+            const botoes = document.createElement("div");
+            botoes.className = "acoes";
+            const btnAtualizarComentario = botao("Atualizar comentário", () => salvarComentario(idProjeto, true));
+            btnAtualizarComentario.id = "btnAtualizarComentario";
+            btnAtualizarComentario.disabled = true;
+            botoes.append(
+                botao("Criar comentário", () => salvarComentario(idProjeto, false)),
+                btnAtualizarComentario,
+                botao("Limpar comentário", () => {
+                    id.value = ""; texto.value = ""; nota.value = "";
+                    btnAtualizarComentario.disabled = true;
+                })
+            );
+            form.appendChild(botoes);
+            area.appendChild(form);
+            const aviso = document.createElement("p");
+            aviso.className = "ajuda";
+            aviso.textContent = "Os novos comentários são vinculados ao usuário logado.";
+            area.appendChild(aviso);
+        }
+
+        function preencherComentario(comentario) {
+            $("btnAtualizarComentario").disabled = false;
+            $("txtIdComentario").value = comentario.idComentario;
+            $("txtTextoComentario").value = comentario.texto || "";
+            $("txtNotaComentario").value = comentario.nota ?? "";
+            $("txtTextoComentario").focus();
+        }
+
+        async function salvarComentario(idProjeto, atualizando) {
+            const id = $("txtIdComentario").value;
+            const texto = $("txtTextoComentario").value.trim();
+            const notaTexto = $("txtNotaComentario").value;
+            if (!texto) return mensagem("Digite o texto do comentário.", true);
+            if (notaTexto !== "" && (!Number.isInteger(Number(notaTexto)) || Number(notaTexto) < 1 || Number(notaTexto) > 5)) {
+                return mensagem("A nota deve estar entre 1 e 5.", true);
+            }
+            if (atualizando && !id) return mensagem("Selecione um comentário para atualizar.", true);
+            const comentario = {
+                texto: texto,
+                nota: notaTexto === "" ? null : Number(notaTexto),
+                projeto: { idProjeto: idProjeto },
+                usuario: { idUsuario: sessao.usuario.idUsuario }
+            };
+            try {
+                if (atualizando) await api.put("/api/comentarios", id, { comentario });
+                else await api.post("/api/comentarios", { comentario });
+                mensagem(atualizando ? "Comentário atualizado." : "Comentário criado.");
+                await carregarComentarios(idProjeto);
+            } catch (erro) {
+                mensagem(erro.message, true);
+            }
+        }
+
+        async function excluirComentario(idComentario, idProjeto) {
+            if (!confirm("Excluir o comentário " + idComentario + "?")) return;
+            try {
+                await api.delete("/api/comentarios", idComentario);
+                mensagem("Comentário excluído.");
+                await carregarComentarios(idProjeto);
+            } catch (erro) {
+                mensagem(erro.message, true);
+            }
+        }
+
+        limpar();
+        listar();
+    </script>
+</body>
+</html>
